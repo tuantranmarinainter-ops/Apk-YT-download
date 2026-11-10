@@ -22,6 +22,7 @@ class MainActivity : Activity() {
     private var pageReady = false
     private var pendingShare: String? = null
     private val pool = Executors.newCachedThreadPool()
+    private var installWaiting = false
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -46,6 +47,15 @@ class MainActivity : Activity() {
         if (Build.VERSION.SDK_INT >= 33 &&
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // quay lại từ màn hình cấp quyền "cài app không rõ nguồn gốc" → cài tiếp
+        if (installWaiting && Updater.state == "ready" && packageManager.canRequestPackageInstalls()) {
+            installWaiting = false
+            Updater.install(this)
         }
     }
 
@@ -96,6 +106,21 @@ class MainActivity : Activity() {
 
         @JavascriptInterface fun downloadTrack(url: String, key: String, kind: String, fmt: String): String =
             Engine.enqueueTrack(url, key, kind, fmt)
+
+        @JavascriptInterface fun updateInfo(): String = Updater.json(this@MainActivity).toString()
+
+        @JavascriptInterface fun checkUpdate() = Updater.check(applicationContext)
+
+        @JavascriptInterface fun startUpdate() = Updater.download(applicationContext)
+
+        @JavascriptInterface fun installUpdate() {
+            runOnUiThread {
+                if (!Updater.install(this@MainActivity)) {
+                    installWaiting = true
+                    toast("Bật \"Cho phép từ nguồn này\" rồi quay lại app")
+                }
+            }
+        }
 
         @JavascriptInterface fun cancel(id: String) = Engine.cancel(id)
 

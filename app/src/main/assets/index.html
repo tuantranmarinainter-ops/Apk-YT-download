@@ -63,6 +63,11 @@
   .tag.m{color:var(--ok)} .tag.o{color:var(--accent2)} .tag.t{color:var(--muted)}
   details summary{cursor:pointer;color:var(--muted);padding:8px 0;font-size:13px}
   #trSearch{width:100%;background:#0c0e12;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px;font:inherit;margin:4px 0}
+  #upd{display:none;background:#2a1a1e;border:1px solid var(--accent);border-radius:12px;padding:12px 14px;margin-bottom:16px;align-items:center;gap:10px;flex-wrap:wrap}
+  #upd .msg{flex:1;min-width:180px;font-size:14px}
+  #upd .bar{width:100%;margin:6px 0 0}
+  .ver{font-size:12px;color:var(--muted);text-align:center;margin-top:30px}
+  .ver a{color:var(--muted)}
   .empty{color:var(--muted);text-align:center;padding:24px}
   @media (max-width:560px){ .job img{width:84px;height:48px} .preview img{width:110px} .wrap{padding-top:16px} }
   .status{cursor:pointer}
@@ -80,6 +85,7 @@
     <div class="status" id="status" title="Bấm để cập nhật yt-dlp">Đang khởi động…</div>
   </header>
 
+  <div id="upd"></div>
   <div class="card">
     <textarea id="urls" placeholder="Dán link YouTube / Shorts (mỗi dòng 1 link) — hoặc bấm Chia sẻ trong app YouTube → chọn YT Sub"></textarea>
     <div class="row">
@@ -141,6 +147,7 @@
     <button id="btnClear">Xoá mục xong</button>
   </div>
   <div id="jobs"><div class="empty">Chưa có gì. Dán link và bấm Tải xuống.</div></div>
+  <div class="ver" id="ver"></div>
 </div>
 
 <script>
@@ -257,6 +264,32 @@ $("#subsBox").addEventListener("click", e => {
   b.textContent = "✓ Đã thêm"; b.disabled = true;
   poll();
 });
+
+// ---- Tự cập nhật app
+let updSeen = "";
+function renderUpdate(){
+  const u = JSON.parse(A.updateInfo());
+  $("#ver").innerHTML = `Phiên bản ${esc(u.currentName)} · <a href="#" id="chkUpd">${
+    u.state === "checking" ? "đang kiểm tra…" : u.state === "latest" ? "đã là bản mới nhất ✓" : "kiểm tra cập nhật"}</a>`;
+  $("#chkUpd").onclick = e => { e.preventDefault(); A.checkUpdate(); setTimeout(renderUpdate, 300); };
+  const box = $("#upd");
+  let html = "";
+  if (u.state === "available") html = `<div class="msg">🎉 Có bản mới <b>${u.latest}</b> (bạn đang dùng ${u.current})</div><button class="primary" id="updGo">Cập nhật</button>`;
+  else if (u.state === "downloading") html = `<div class="msg">Đang tải bản cập nhật… ${u.pct}%</div><div class="bar"><i style="width:${u.pct}%"></i></div>`;
+  else if (u.state === "ready") html = `<div class="msg">✅ Đã tải xong bản ${u.latest}</div><button class="primary" id="updInst">Cài đặt</button>`;
+  else if (u.state === "error" && updSeen !== "") html = `<div class="msg err">${esc(u.error)}</div><button id="updRetry">Thử lại</button>`;
+  box.style.display = html ? "flex" : "none";
+  if (html !== box.dataset.h) {
+    box.innerHTML = html; box.dataset.h = html;
+    const g = $("#updGo"); if (g) g.onclick = () => { updSeen = "1"; A.startUpdate(); };
+    const i = $("#updInst"); if (i) i.onclick = () => A.installUpdate();
+    const r = $("#updRetry"); if (r) r.onclick = () => { A.checkUpdate(); };
+  }
+  if (u.state === "ready" && updSeen === "1") { updSeen = "2"; A.installUpdate(); }
+  setTimeout(renderUpdate, u.state === "downloading" || u.state === "checking" ? 400 : 2000);
+}
+A.checkUpdate();
+renderUpdate();
 
 $("#btnGo").onclick = () => {
   if (!urlsIn().length) return alert("Dán link YouTube trước đã.");
