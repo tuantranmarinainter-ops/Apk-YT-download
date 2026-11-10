@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <!-- nút play -->
+    <path android:fillColor="#FFFFFF" android:pathData="M45,27 L71,42 L45,57 Z" />
+    <!-- 2 dòng phụ đề -->
+    <path android:fillColor="#FFFFFF" android:pathData="M34,63 h40 a3,3 0 0 1 0,6 h-40 a3,3 0 0 1 0,-6 Z" />
+    <path android:fillColor="#FFE14D" android:pathData="M40,73 h28 a3,3 0 0 1 0,6 h-28 a3,3 0 0 1 0,-6 Z" />
+</vector>

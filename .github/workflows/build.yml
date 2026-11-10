@@ -1,0 +1,59 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build APK
+        run: |
+          chmod +x gradlew
+          set -o pipefail
+          ./gradlew assembleRelease --no-daemon --stacktrace 2>&1 | tee build.log
+
+      - name: Report build errors
+        if: failure()
+        run: |
+          # Đưa lỗi build thành "annotation" để xem được ngay trên trang Actions
+          grep -E "^e: |error:|What went wrong|Could not|FAILURE|> " build.log | head -40 > err.txt || true
+          msg=$(sed ':a;N;$!ba;s/%/%25/g;s/\r/%0D/g;s/\n/%0A/g' err.txt | cut -c1-3800)
+          echo "::error title=Build failed::$msg"
+
+      - name: Rename APKs
+        run: |
+          mkdir out
+          cp app/build/outputs/apk/release/app-arm64-v8a-release.apk "out/YTSub-${{ github.run_number }}-arm64.apk"
+          cp app/build/outputs/apk/release/app-armeabi-v7a-release.apk "out/YTSub-${{ github.run_number }}-arm32.apk"
+          ls -la out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: YTSub-apk
+          path: out/*.apk
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: YT Sub ${{ github.run_number }}
+          make_latest: true
+          files: out/*.apk
+          body: |
+            **Cài trên điện thoại:** tải file `-arm64.apk` (hầu hết điện thoại đời mới).
+            Máy rất cũ (32-bit) thì tải file `-arm32.apk`.

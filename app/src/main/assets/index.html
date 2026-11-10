@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>YT Sub Downloader</title>
+<style>
+  :root{
+    --bg:#0f1115;--panel:#171a21;--line:#262b36;--text:#e8eaf0;--muted:#8b93a7;
+    --accent:#ff3b4e;--accent2:#ffe14d;--ok:#3ccf91;--err:#ff6b6b;--chip:#20242e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:860px;margin:0 auto;padding:28px 16px 60px}
+  header{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+  .logo{width:40px;height:40px;border-radius:10px;background:var(--accent);display:grid;place-items:center;font-weight:800}
+  h1{font-size:20px;margin:0}
+  .sub{color:var(--muted);font-size:13px}
+  .status{margin-left:auto;font-size:12px;color:var(--muted);text-align:right}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px}
+  textarea{width:100%;min-height:92px;resize:vertical;background:#0c0e12;color:var(--text);border:1px solid var(--line);
+    border-radius:10px;padding:12px;font:inherit}
+  textarea:focus{outline:2px solid var(--accent);border-color:transparent}
+  .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+  .group{margin-top:16px}
+  .group>label{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:6px}
+  .seg{display:flex;flex-wrap:wrap;gap:6px}
+  .seg input{display:none}
+  .seg span{display:inline-block;padding:7px 12px;border-radius:999px;background:var(--chip);border:1px solid var(--line);cursor:pointer;font-size:14px;user-select:none}
+  .seg input:checked+span{background:var(--accent);border-color:var(--accent);color:#fff}
+  .seg input:disabled+span{opacity:.35;cursor:not-allowed}
+  button{font:inherit;border:0;border-radius:10px;padding:10px 16px;cursor:pointer;background:var(--chip);color:var(--text);border:1px solid var(--line)}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+  button:disabled{opacity:.5;cursor:wait}
+  .hint{color:var(--muted);font-size:13px;margin-top:8px}
+  .preview{display:none;gap:14px;margin-top:14px;align-items:flex-start}
+  .preview img{width:160px;border-radius:8px;flex:none;object-fit:cover;aspect-ratio:16/9;background:#000}
+  .badge{display:inline-block;font-size:12px;padding:2px 8px;border-radius:999px;background:var(--chip);border:1px solid var(--line);margin:4px 4px 0 0}
+  .badge.ok{color:var(--ok)} .badge.no{color:var(--err)}
+  .jobs-head{display:flex;align-items:center;gap:8px;margin:24px 0 10px}
+  .jobs-head h2{font-size:16px;margin:0;flex:1}
+  .job{display:flex;gap:14px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px}
+  .job img{width:120px;height:68px;object-fit:cover;border-radius:6px;background:#000;flex:none}
+  .job .body{flex:1;min-width:0}
+  .job .t{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bar{height:6px;border-radius:6px;background:#0c0e12;overflow:hidden;margin:8px 0 6px}
+  .bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .4s}
+  .bar.indet i{width:30%;animation:slide 1.1s infinite ease-in-out}
+  @keyframes slide{0%{margin-left:-30%}100%{margin-left:100%}}
+  .stage{font-size:13px;color:var(--muted)}
+  .err{color:var(--err);font-size:13px;margin-top:4px;word-break:break-word}
+  .warn{color:var(--accent2);font-size:12px}
+  .files button{font-size:13px;padding:4px 10px;border-radius:8px;margin:6px 6px 0 0}
+  .files a{display:inline-block;margin:6px 6px 0 0;font-size:13px;color:var(--text);text-decoration:none;background:var(--chip);border:1px solid var(--line);padding:4px 10px;border-radius:8px}
+  .files a:hover{border-color:var(--accent)}
+  .empty{color:var(--muted);text-align:center;padding:24px}
+  @media (max-width:560px){ .job img{width:84px;height:48px} .preview img{width:110px} .wrap{padding-top:16px} }
+  .status{cursor:pointer}
+  .x{float:right;padding:2px 10px;font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">▶</div>
+    <div>
+      <h1>YT Sub Downloader</h1>
+      <div class="sub">Tải video & Shorts YouTube kèm phụ đề Anh · Việt · Song ngữ</div>
+    </div>
+    <div class="status" id="status" title="Bấm để cập nhật yt-dlp">Đang khởi động…</div>
+  </header>
+
+  <div class="card">
+    <textarea id="urls" placeholder="Dán link YouTube / Shorts (mỗi dòng 1 link) — hoặc bấm Chia sẻ trong app YouTube → chọn YT Sub"></textarea>
+    <div class="row">
+      <button id="btnPaste">📋 Dán</button>
+      <button id="btnCheck">Kiểm tra</button>
+      <button class="primary" id="btnGo">⬇ Tải xuống</button>
+    </div>
+    <div class="preview" id="preview"></div>
+
+    <div class="group">
+      <label>Loại tải</label>
+      <div class="seg" data-name="mode">
+        <label><input type="radio" name="mode" value="video" checked><span>Video</span></label>
+        <label><input type="radio" name="mode" value="audio"><span>Chỉ âm thanh MP3</span></label>
+        <label><input type="radio" name="mode" value="subs"><span>Chỉ phụ đề</span></label>
+      </div>
+    </div>
+    <div class="group" id="gQuality">
+      <label>Chất lượng</label>
+      <div class="seg">
+        <label><input type="radio" name="quality" value="best"><span>Cao nhất</span></label>
+        <label><input type="radio" name="quality" value="1080" checked><span>1080p</span></label>
+        <label><input type="radio" name="quality" value="720"><span>720p</span></label>
+        <label><input type="radio" name="quality" value="480"><span>480p</span></label>
+      </div>
+    </div>
+    <div class="group">
+      <label>Phụ đề</label>
+      <div class="seg">
+        <label><input type="radio" name="sub_lang" value="none"><span>Không</span></label>
+        <label><input type="radio" name="sub_lang" value="en"><span>🇬🇧 Tiếng Anh</span></label>
+        <label><input type="radio" name="sub_lang" value="vi"><span>🇻🇳 Tiếng Việt</span></label>
+        <label><input type="radio" name="sub_lang" value="both" checked><span>Song ngữ Anh–Việt</span></label>
+      </div>
+    </div>
+    <div class="group" id="gAttach">
+      <label>Cách gắn phụ đề</label>
+      <div class="seg">
+        <label><input type="radio" name="attach" value="srt" checked><span>File .srt riêng</span></label>
+        <label><input type="radio" name="attach" value="soft"><span>Nhúng vào MP4</span></label>
+        <label><input type="radio" name="attach" value="burn"><span>In cứng lên video</span></label>
+      </div>
+      <div class="hint" id="attachHint"></div>
+    </div>
+    <div class="group" id="gFont" style="display:none">
+      <label>Cỡ chữ phụ đề</label>
+      <div class="seg">
+        <label><input type="radio" name="font" value="s"><span>Nhỏ</span></label>
+        <label><input type="radio" name="font" value="m" checked><span>Vừa</span></label>
+        <label><input type="radio" name="font" value="l"><span>Lớn</span></label>
+      </div>
+    </div>
+  </div>
+
+  <div class="jobs-head">
+    <h2>Danh sách tải</h2>
+    <button id="btnFolder">📂 Download</button>
+    <button id="btnClear">Xoá mục xong</button>
+  </div>
+  <div id="jobs"><div class="empty">Chưa có gì. Dán link và bấm Tải xuống.</div></div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const val = n => (document.querySelector(`input[name="${n}"]:checked`) || {}).value;
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmtDur = s => !s ? "" : (s >= 3600 ? Math.floor(s/3600)+":" : "") + String(Math.floor(s%3600/60)).padStart(s>=3600?2:1,"0") + ":" + String(Math.floor(s%60)).padStart(2,"0");
+const A = window.Android;
+
+const HINT = {
+  srt: "Video giữ nguyên, phụ đề lưu thành file .srt riêng (dùng cho CapCut…).",
+  soft: "Phụ đề nằm trong file MP4, bật/tắt trong trình phát (VLC, MX Player…). Nhanh, không mất chất lượng.",
+  burn: "Chữ in thẳng lên hình — xem được ở mọi nơi, hợp để đăng lại Shorts. Song ngữ: dòng Việt màu vàng. Phải encode lại nên chậm & nóng máy với video dài."
+};
+const SAVE = {mode:1, quality:1, sub_lang:1, attach:1, font:1};
+
+function syncUI(){
+  const mode = val("mode"), attach = val("attach"), sub = val("sub_lang");
+  $("#gQuality").style.display = mode === "video" ? "" : "none";
+  $("#gAttach").style.display = mode === "video" && sub !== "none" ? "" : "none";
+  $("#gFont").style.display = mode === "video" && sub !== "none" && attach === "burn" ? "" : "none";
+  $("#attachHint").textContent = HINT[attach];
+  document.querySelector('input[name="sub_lang"][value="none"]').disabled = mode === "subs";
+  if (mode === "subs" && sub === "none") document.querySelector('input[name="sub_lang"][value="both"]').checked = true;
+  try { const o = {}; for (const k in SAVE) o[k] = val(k); localStorage.setItem("opts", JSON.stringify(o)); } catch {}
+}
+try {
+  const o = JSON.parse(localStorage.getItem("opts") || "{}");
+  for (const k in o) { const r = document.querySelector(`input[name="${k}"][value="${o[k]}"]`); if (r) r.checked = true; }
+} catch {}
+document.querySelectorAll("input[type=radio]").forEach(r => r.addEventListener("change", syncUI));
+syncUI();
+
+// gọi bất đồng bộ sang Kotlin
+const cbs = {}; let cbn = 0;
+window.__cb = (id, res) => { const f = cbs[id]; delete cbs[id]; f && f(res); };
+const call = (fn, ...args) => new Promise(res => { const id = "c" + (++cbn); cbs[id] = res; A[fn](...args, id); });
+
+function refreshStatus(){
+  const s = JSON.parse(A.status());
+  let t = s.initError ? `<span style="color:var(--err)">Lỗi khởi động</span>`
+        : !s.ready ? "Đang chuẩn bị (lần đầu ~10s)…"
+        : `yt-dlp ${esc(s.ytdlp || "")}`;
+  if (s.update) t += `<br>${esc(s.update)}`;
+  $("#status").innerHTML = t;
+}
+$("#status").onclick = () => { A.updateYtdlp(); setTimeout(refreshStatus, 300); };
+refreshStatus(); setInterval(refreshStatus, 3000);
+
+const urlsIn = () => $("#urls").value.match(/https?:\/\/\S+/g) || [];
+
+window.onShared = text => {
+  const found = String(text).match(/https?:\/\/\S+/g);
+  if (!found) return;
+  const cur = $("#urls").value.trim();
+  $("#urls").value = (cur ? cur + "\n" : "") + found.join("\n");
+  if (!cur) $("#btnCheck").click();
+};
+$("#btnPaste").onclick = () => window.onShared(A.paste());
+
+function trackBadge(lang, t){
+  const name = lang === "en" ? "EN" : "VI";
+  if (!t) return `<span class="badge no">${name}: không có</span>`;
+  const kind = t.kind === "manual" ? "chuẩn" : (lang === "en" ? "tự động" : "YouTube dịch");
+  return `<span class="badge ok">${name}: ${kind}</span>`;
+}
+
+$("#btnCheck").onclick = async () => {
+  const url = urlsIn()[0];
+  if (!url) return alert("Dán link YouTube trước đã.");
+  const b = $("#btnCheck"); b.disabled = true; b.textContent = "Đang kiểm tra…";
+  const p = $("#preview");
+  const i = await call("info", url);
+  p.innerHTML = i.error ? `<div class="err">${esc(i.error)}</div>` : `<img src="${esc(i.thumbnail)}" alt="">
+      <div><div style="font-weight:600">${esc(i.title)}</div>
+      <div class="stage">${esc(i.uploader)} · ${fmtDur(i.duration)} ${i.vertical ? "· Shorts/dọc" : ""}</div>
+      <div>${trackBadge("en", i.tracks.en)}${trackBadge("vi", i.tracks.vi)}</div></div>`;
+  p.style.display = "flex"; b.disabled = false; b.textContent = "Kiểm tra";
+};
+
+$("#btnGo").onclick = () => {
+  if (!urlsIn().length) return alert("Dán link YouTube trước đã.");
+  const r = JSON.parse(A.download(JSON.stringify({urls: $("#urls").value, mode:val("mode"), quality:val("quality"),
+      sub_lang:val("sub_lang"), attach:val("attach"), font:val("font")})));
+  if (r.error) return alert(r.error);
+  $("#urls").value = ""; $("#preview").style.display = "none";
+  poll();
+};
+$("#btnClear").onclick = () => { A.clear(); poll(); };
+$("#btnFolder").onclick = () => A.openFolder();
+
+function fileIcon(n){ return n.endsWith(".srt") ? "💬" : n.endsWith(".mp3") ? "🎵" : "🎬"; }
+
+let lastHtml = "";
+function render(jobs){
+  const box = $("#jobs");
+  let html;
+  if (!jobs.length) html = '<div class="empty">Chưa có gì. Dán link và bấm Tải xuống.</div>';
+  else html = jobs.map(j => {
+    const i = j.info || {};
+    const live = j.status === "running" || j.status === "queued";
+    const indet = j.status === "running" && (j.pct === null || j.pct === undefined);
+    const pct = j.status === "done" ? 100 : (j.pct || 0);
+    const files = (j.files || []).map((f, n) => {
+      const short = f.name.slice(f.name.lastIndexOf("]") + 1) || f.name;
+      return `<div style="margin-top:6px">${fileIcon(f.name)} ${esc(short)}
+        <span class="files"><button data-j="${j.id}" data-n="${n}" data-a="open">Mở</button><button data-j="${j.id}" data-n="${n}" data-a="share">Chia sẻ</button></span></div>`;
+    }).join("");
+    return `<div class="job">
+      ${i.thumbnail ? `<img src="${esc(i.thumbnail)}" alt="">` : `<img alt="">`}
+      <div class="body">
+        ${live ? `<button class="x" data-j="${j.id}" data-a="cancel">Huỷ</button>` : ""}
+        <div class="t">${esc(i.title || j.url)}</div>
+        ${live ? `<div class="bar ${indet ? "indet" : ""}"><i style="width:${pct}%"></i></div>` : ""}
+        <div class="stage">${esc(j.stage)}${j.status === "running" && !indet ? " " + Math.round(pct) + "%" : ""}</div>
+        ${j.error ? `<div class="err">${esc(j.error)}</div>` : ""}
+        ${(j.warnings || []).map(w => `<div class="warn">⚠ ${esc(w)}</div>`).join("")}
+        ${files}
+      </div></div>`;
+  }).join("");
+  if (html !== lastHtml) { box.innerHTML = html; lastHtml = html; }
+  window.__jobs = jobs;
+}
+$("#jobs").addEventListener("click", e => {
+  const b = e.target.closest("button[data-a]"); if (!b) return;
+  if (b.dataset.a === "cancel") { A.cancel(b.dataset.j); return; }
+  const j = (window.__jobs || []).find(x => x.id === b.dataset.j); if (!j) return;
+  const f = j.files[+b.dataset.n];
+  A[b.dataset.a](f.uri, f.mime);
+});
+
+let timer = null;
+function poll(){
+  clearTimeout(timer);
+  const jobs = JSON.parse(A.jobs());
+  render(jobs);
+  const busy = jobs.some(j => j.status === "queued" || j.status === "running");
+  timer = setTimeout(poll, busy ? 700 : 3000);
+}
+poll();
+</script>
+</body>
+</html>
