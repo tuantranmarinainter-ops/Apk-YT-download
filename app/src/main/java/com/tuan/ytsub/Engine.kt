@@ -16,7 +16,10 @@ import java.io.File
 import java.util.UUID
 import java.util.concurrent.Executors
 
-data class Opts(val mode: String, val quality: String, val subLang: String, val attach: String, val font: String)
+data class Opts(
+    val mode: String, val quality: String, val subLang: String, val attach: String, val font: String,
+    val track: String = "", val trackKind: String = "", val trackFmt: String = "srt",
+)
 
 data class OutFile(val name: String, val uri: String, val mime: String)
 
@@ -145,7 +148,31 @@ object Engine {
             put("duration", info.optDouble("duration", 0.0)); put("thumbnail", info.optString("thumbnail"))
             put("vertical", (w > 0 && h > w) || url.contains("/shorts/"))
             put("tracks", tracks)
+            put("all", allTracks(info))
         }
+    }
+
+    /** Mọi phụ đề có sẵn, như DownSub: manual (người đăng làm), orig (tự động gốc), trans (YouTube dịch). */
+    private fun allTracks(info: JSONObject): JSONArray {
+        val out = JSONArray()
+        fun nameOf(o: JSONObject, k: String) =
+            o.optJSONArray(k)?.optJSONObject(0)?.optString("name")?.takeIf { it.isNotBlank() } ?: k
+        info.optJSONObject("subtitles")?.let { s ->
+            s.keys().asSequence().filter { !it.startsWith("live_chat") }.sorted().forEach { k ->
+                out.put(JSONObject().put("key", k).put("name", nameOf(s, k)).put("kind", "manual"))
+            }
+        }
+        info.optJSONObject("automatic_captions")?.let { a ->
+            val keys = a.keys().asSequence().toList()
+            val hasOrig = keys.any { it.endsWith("-orig") }
+            val lang = info.optString("language")
+            val rows = keys.map { k ->
+                val orig = k.endsWith("-orig") || (!hasOrig && lang.isNotEmpty() && k == lang)
+                JSONObject().put("key", k).put("name", nameOf(a, k)).put("kind", if (orig) "orig" else "trans")
+            }.sortedWith(compareBy<JSONObject>({ it.getString("kind") != "orig" }, { it.getString("name") }))
+            rows.forEach { out.put(it) }
+        }
+        return out
     }
 
     fun info(url: String): JSONObject = try {
@@ -170,6 +197,15 @@ object Engine {
         }
         DownloadService.start(app)
         return ids
+    }
+
+    fun enqueueTrack(url: String, key: String, kind: String, fmt: String): String {
+        val job = Job(UUID.randomUUID().toString().take(10), url,
+            Opts("track", "", "none", "srt", "m", track = key, trackKind = kind, trackFmt = fmt))
+        jobs.add(0, job)
+        worker.execute { run(job) }
+        DownloadService.start(app)
+        return job.id
     }
 
     fun active() = synchronized(jobs) { jobs.count { it.status == "queued" || it.status == "running" } }
@@ -203,6 +239,18 @@ object Engine {
             job.info = summ
             val name = "${safeName(info.optString("title"))} [${info.optString("id")}]"
             val duration = info.optDouble("duration", 0.0)
+
+            // Tải 1 phụ đề đúng như YouTube có (kiểu DownSub)
+            if (o.mode == "track") {
+                job.stage = "Đang tải phụ đề ${o.track}…"
+                val cues = fetchTrack(url, o.track, o.trackKind == "manual", dir, job.id)
+                if (cues.isEmpty()) throw RuntimeException("Phụ đề ${o.track} rỗng hoặc không tải được.")
+                val out = File(dir, "track.${o.trackFmt}")
+                out.writeText(if (o.trackFmt == "txt") Subs.toTxt(cues) else Subs.toSrt(cues))
+                publish(job, out, "$name.${o.track}.${o.trackFmt}")
+                job.status = "done"; job.stage = "Xong! Đã lưu vào Download/YTSub"; job.pct = 100.0
+                return
+            }
 
             // 1) phụ đề
             val cues = downloadSubs(job, info, url, dir)
@@ -307,24 +355,30 @@ object Engine {
             if (t == null) { job.warnings.add("Video không có phụ đề ${LANG_NAME[lang]}."); continue }
             val (key, kind) = t
             job.stage = "Đang tải phụ đề ${LANG_NAME[lang]}…"; job.pct = null
-            try {
-                val req = YoutubeDLRequest(url).addOption("--no-playlist").addOption("--skip-download")
-                    .addOption(if (kind == "manual") "--write-subs" else "--write-auto-subs")
-                    .addOption("--sub-langs", key).addOption("--sub-format", "json3/vtt/srt/best")
-                    .addOption("-o", File(dir, "sub.%(ext)s").absolutePath)
-                YoutubeDL.getInstance().execute(req, job.id, false, null)
+            val c = try {
+                fetchTrack(url, key, kind == "manual", dir, job.id)
             } catch (e: YoutubeDL.CanceledException) {
                 throw e
             } catch (e: Exception) {
                 job.warnings.add("Lỗi tải phụ đề ${LANG_NAME[lang]}: ${shortErr(e).take(150)}"); continue
             }
-            val f = dir.listFiles()?.firstOrNull { it.name.startsWith("sub.$key.") }
-            val c = f?.let { runCatching { Subs.load(it) }.getOrNull() } ?: emptyList()
             if (c.isEmpty()) { job.warnings.add("Phụ đề ${LANG_NAME[lang]} rỗng."); continue }
             result[lang] = c
             if (kind == "auto") job.warnings.add("Phụ đề ${LANG_NAME[lang]} là bản ${if (lang == "en") "tự động" else "YouTube tự dịch"} (có thể chưa chuẩn).")
         }
         return result
+    }
+
+    private fun fetchTrack(url: String, key: String, manual: Boolean, dir: File, pid: String? = null): List<Cue> {
+        val sub = File(dir, "sub_${key.hashCode().toUInt()}").apply { mkdirs() }
+        val langRe = key.replace(Regex("[\\\\^$.|?*+()\\[\\]{}]")) { "\\" + it.value }
+        val req = YoutubeDLRequest(url).addOption("--no-playlist").addOption("--skip-download")
+            .addOption(if (manual) "--write-subs" else "--write-auto-subs")
+            .addOption("--sub-langs", langRe).addOption("--sub-format", "json3/vtt/srt/best")
+            .addOption("-o", File(sub, "sub.%(ext)s").absolutePath)
+        YoutubeDL.getInstance().execute(req, pid, false, null)
+        val f = sub.listFiles()?.firstOrNull { it.name.startsWith("sub.") } ?: return emptyList()
+        return runCatching { Subs.load(f) }.getOrDefault(emptyList())
     }
 
     // ------------------------------------------------------------ ffmpeg
@@ -389,7 +443,7 @@ object Engine {
     // ------------------------------------------------------------ lưu file
     private fun mimeOf(f: File) = when (f.extension.lowercase()) {
         "mp4" -> "video/mp4"; "webm" -> "video/webm"; "mkv" -> "video/x-matroska"
-        "mp3" -> "audio/mpeg"; "m4a" -> "audio/mp4"; "srt" -> "application/x-subrip"
+        "mp3" -> "audio/mpeg"; "m4a" -> "audio/mp4"; "srt" -> "application/x-subrip"; "txt" -> "text/plain"
         else -> "application/octet-stream"
     }
 

@@ -53,6 +53,16 @@
   .files button{font-size:13px;padding:4px 10px;border-radius:8px;margin:6px 6px 0 0}
   .files a{display:inline-block;margin:6px 6px 0 0;font-size:13px;color:var(--text);text-decoration:none;background:var(--chip);border:1px solid var(--line);padding:4px 10px;border-radius:8px}
   .files a:hover{border-color:var(--accent)}
+  .subs{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+  .subs h3{font-size:14px;margin:0 0 8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .trk{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--line)}
+  .trk .nm{flex:1;min-width:0}
+  .trk .nm small{color:var(--muted)}
+  .trk button{padding:5px 12px;font-size:13px}
+  .tag{font-size:11px;padding:1px 7px;border-radius:999px;margin-right:6px;border:1px solid var(--line)}
+  .tag.m{color:var(--ok)} .tag.o{color:var(--accent2)} .tag.t{color:var(--muted)}
+  details summary{cursor:pointer;color:var(--muted);padding:8px 0;font-size:13px}
+  #trSearch{width:100%;background:#0c0e12;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px;font:inherit;margin:4px 0}
   .empty{color:var(--muted);text-align:center;padding:24px}
   @media (max-width:560px){ .job img{width:84px;height:48px} .preview img{width:110px} .wrap{padding-top:16px} }
   .status{cursor:pointer}
@@ -78,6 +88,7 @@
       <button class="primary" id="btnGo">⬇ Tải xuống</button>
     </div>
     <div class="preview" id="preview"></div>
+    <div id="subsBox"></div>
 
     <div class="group">
       <label>Loại tải</label>
@@ -208,14 +219,51 @@ $("#btnCheck").onclick = async () => {
       <div class="stage">${esc(i.uploader)} · ${fmtDur(i.duration)} ${i.vertical ? "· Shorts/dọc" : ""}</div>
       <div>${trackBadge("en", i.tracks.en)}${trackBadge("vi", i.tracks.vi)}</div></div>`;
   p.style.display = "flex"; b.disabled = false; b.textContent = "Kiểm tra";
+  renderSubs(i.error ? null : i, url);
 };
+
+// ---- Danh sách phụ đề kiểu DownSub
+let subFmt = "srt";
+try { subFmt = localStorage.getItem("subFmt") || "srt"; } catch {}
+function trackRow(t){
+  const tag = t.kind === "manual" ? '<span class="tag m">Gốc</span>' : t.kind === "orig" ? '<span class="tag o">Tự động</span>' : '<span class="tag t">Dịch</span>';
+  return `<div class="trk" data-name="${esc((t.name + " " + t.key).toLowerCase())}"><div class="nm">${tag}${esc(t.name)} <small>${esc(t.key)}</small></div>
+    <button data-k="${esc(t.key)}" data-kind="${t.kind}">⬇ Tải</button></div>`;
+}
+function renderSubs(info, url){
+  const box = $("#subsBox");
+  if (!info) { box.innerHTML = ""; return; }
+  const all = info.all || [];
+  const main = all.filter(t => t.kind !== "trans"), trans = all.filter(t => t.kind === "trans");
+  box.innerHTML = `<div class="subs">
+    <h3>Phụ đề có sẵn của video
+      <span class="seg" style="margin-left:auto">
+        <label><input type="radio" name="subfmt" value="srt" ${subFmt === "srt" ? "checked" : ""}><span>SRT</span></label>
+        <label><input type="radio" name="subfmt" value="txt" ${subFmt === "txt" ? "checked" : ""}><span>TXT</span></label>
+      </span></h3>
+    ${main.length ? main.map(trackRow).join("") : '<div class="stage">Video này không có phụ đề gốc.</div>'}
+    ${trans.length ? `<details><summary>Bản dịch tự động của YouTube (${trans.length} ngôn ngữ)</summary>
+      <input id="trSearch" placeholder="Tìm ngôn ngữ… (vd: Vietnamese)">
+      <div id="trList">${trans.map(trackRow).join("")}</div></details>` : ""}
+  </div>`;
+  box.dataset.url = url;
+  box.querySelectorAll('input[name=subfmt]').forEach(r => r.onchange = () => { subFmt = r.value; try { localStorage.setItem("subFmt", subFmt); } catch {} });
+  const q = $("#trSearch");
+  if (q) q.oninput = () => { const v = q.value.toLowerCase(); $("#trList").querySelectorAll(".trk").forEach(r => r.style.display = r.dataset.name.includes(v) ? "" : "none"); };
+}
+$("#subsBox").addEventListener("click", e => {
+  const b = e.target.closest("button[data-k]"); if (!b) return;
+  A.downloadTrack($("#subsBox").dataset.url, b.dataset.k, b.dataset.kind, subFmt);
+  b.textContent = "✓ Đã thêm"; b.disabled = true;
+  poll();
+});
 
 $("#btnGo").onclick = () => {
   if (!urlsIn().length) return alert("Dán link YouTube trước đã.");
   const r = JSON.parse(A.download(JSON.stringify({urls: $("#urls").value, mode:val("mode"), quality:val("quality"),
       sub_lang:val("sub_lang"), attach:val("attach"), font:val("font")})));
   if (r.error) return alert(r.error);
-  $("#urls").value = ""; $("#preview").style.display = "none";
+  $("#urls").value = ""; $("#preview").style.display = "none"; $("#subsBox").innerHTML = "";
   poll();
 };
 $("#btnClear").onclick = () => { A.clear(); poll(); };

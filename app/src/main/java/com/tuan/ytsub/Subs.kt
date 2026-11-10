@@ -123,6 +123,13 @@ object Subs {
         }
     }
 
+    /** Chỉ lấy chữ (như TXT của DownSub), bỏ dòng lặp liên tiếp. */
+    fun toTxt(cues: List<Cue>): String {
+        val out = ArrayList<String>()
+        cues.forEach { c -> c.text.split("\n").map { it.trim() }.filter { it.isNotEmpty() }.forEach { if (out.lastOrNull() != it) out.add(it) } }
+        return out.joinToString("\n") + "\n"
+    }
+
     private fun oneLine(t: String) = t.split("\n").map { it.trim() }.filter { it.isNotEmpty() }.joinToString(" ")
 
     /** Dòng trên = primary (EN), dòng dưới = secondary (VI). color != null → tô màu dòng dưới. */

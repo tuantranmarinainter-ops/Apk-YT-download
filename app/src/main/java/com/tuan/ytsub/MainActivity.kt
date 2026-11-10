@@ -94,6 +94,9 @@ class MainActivity : Activity() {
             return JSONObject().put("ids", org.json.JSONArray(ids)).toString()
         }
 
+        @JavascriptInterface fun downloadTrack(url: String, key: String, kind: String, fmt: String): String =
+            Engine.enqueueTrack(url, key, kind, fmt)
+
         @JavascriptInterface fun cancel(id: String) = Engine.cancel(id)
 
         @JavascriptInterface fun clear() { Engine.clearFinished() }
